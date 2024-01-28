@@ -31,8 +31,21 @@ void testfunc(T i, T j, F funcpoint = mf1)
     cout << funcpoint(i, j) << endl;
 }
 
+/* ----------  ---------- */
+
+template <typename T = int, typename U>
+void testfunc2(U m)
+{
+    T tmpValue = m;
+    cout << tmpValue << endl;
+}
+
 int main(void)
 {
     testfunc(15, 16);
     testfunc(15, 16, mf2);
+
+    cout << "/* ----------  ---------- */" << endl;
+
+    testfunc2(12);
 }

@@ -1,4 +1,4 @@
-# chap2 - 函数模板
+# chap2_1 - 函数模板
 
 ## 1 - 基本范例
 
@@ -397,8 +397,74 @@ void tfunc(const T& tmpRv1, U& tmpRv2)
 函数模板的缺省参数是可以放前面的，
 但是类模板就不一样，类模板的缺省不能放前面
 
+```cxx
+template <typename T = int, typename U>
+void testfunc2(U m)
+{
+    T tmpValue = m;
+    cout << tmpValue << endl;
+}
+
+int main(void)
+{
+    testfunc2(12);
+}
+```
+
 ## 7 - 非类型模板参数
+
+前面的函数模板涉及到的 模板参数都是 “类型模板参数”
+
+模板参数是一个通称，分为：类型 和 非类型。
+
+如果，`typename`或者是`class`，那么参数就是类型的意思。
+
+模板参数还可以是 “非类型模板参数”（普通参数）
+
+```cxx
+template <typename T, typename U, int value = 100>
+auto Add(T tv1, U tv2)
+{
+    cout << "val = " << value << endl;
+    return tv1 + tv2;
+}
+
+int main(void)
+{
+    cout << Add<float, float, 22>(22.3f, 11.8f) << endl;
+}
+```
+
+C++17 以后，可以将模板参数中的 “非类型模板参数” 指定为`auto`类型，也就是`template<auto val = 100>`。
+指定非类型模板参数的值时，一般给的都是常量。因为编译器在编译的时候就要能够确定非类型模板参数的值。
+
+并不是任何类型的参数都可以作为 非类型模板参数的（比方说不能有 double、float、类类型）
+（但是 double\* 可以）
+
+一般运行做非类型模板参数的类型如下：（可能不断增加）
+整型、指针类型、左值引用、auto 或者`decltype(auto)`
 
 ### 基本概念
 
 ### 比较奇怪的语法
+
+1. 不管类型 还是 非类型模板参数，如果代码中没有用到，则参数名可以省略
+
+```cxx
+// template <typename T, int value>
+template <typename, int> /* 这种语法是允许的，具体如何使用，后面体会 */
+auto Add()
+{
+    return 100;
+}
+```
+
+2. 类型前面可以增加一个 typename 修饰以明确表示一个类型（语法允许，但是画蛇添足）（可能 msvc 有，但是在我的电脑上是不行的）
+
+```cxx
+template <class T, typename int value> /* expected a qulified name after 'typename' */
+auto Add()
+{
+    return 100;
+}
+```
