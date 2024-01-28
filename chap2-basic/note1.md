@@ -215,3 +215,190 @@ int main(void)
 这个时候`<>`就有作用了：告诉编译器，明明白白的调用函数模板
 
 术语：模板函数 是通过 函数模板 生成的函数。（上面可能有笔误的地方）
+
+## 4 - 重载
+
+```cxx
+/**
+ * @brief 函数模板
+ *
+ * @tparam T
+ * @param tmpValue
+ */
+template <typename T>
+void myfunc(T tmpValue)
+{
+    cout << "myfunc(T)执行了!" << endl;
+}
+
+/* ---------- 重载版本 ---------- */
+
+/**
+ * @brief 重载的模板
+ *
+ * @tparam T
+ * @param tmpValue
+ */
+template <typename T>
+void myfunc(T* tmpValue)
+{
+    cout << "myfunc(T*)执行了!" << endl;
+}
+
+/**
+ * @brief 非模板的重载
+ *
+ * @tparam T
+ * @param tmpValue
+ */
+void myfunc(int tmpValue)
+{
+    cout << "myfunc(int)执行了!" << endl;
+}
+
+int main(void)
+{
+    myfunc(12); // myfunc(int)执行了!
+
+    char* p = nullptr;
+    myfunc(p); // myfunc(T*)执行了!
+
+    myfunc(12.1); // myfunc(T)执行了!
+}
+```
+
+函数（函数模板）名字相同，但是参数数量 或者 参数类型上不同。
+函数模板 和 函数也可以同时存在，此时可以把函数看成是一种重载，
+当普通函数和函数模板都比较合适的时候，编译器会有限选择普通函数执行。
+
+如何选择最合适（最特殊）的函数模板/函数，编译器内部有比较复杂的规则，规则随着编译器更新而变化。
+
+## 5 - 特化
+
+泛化：大众化的、常规的。常规情况下写的函数模板，都是泛化的函数模板。
+
+```cxx
+template <typename T, typename U>
+void tfunc(T& tmprv1, U& tmprv2)
+{
+    cout << "tfunc 泛化版本" << endl;
+    cout << tmprv1 << endl;
+    cout << tmprv2 << endl;
+}
+
+int main(void)
+{
+    const char* p = "i love china!";
+    int i = 12;
+    tfunc(p, i); // void tfunc<const char*, int>(const char*& tmprv1, int& tmprv2)
+}
+```
+
+特化版本，一般代表着 泛化版本中 抽出来的一组子集
+
+### 全特化
+
+就是把 tfunc 这个泛化版本中的所有参数`T, U`，都用具体的类型代替（全特化版本）
+
+```cxx
+template <typename T, typename U>
+void tfunc(T& tmprv1, U& tmprv2)
+{
+    cout << "tfunc 泛化版本" << endl;
+    cout << tmprv1 << endl;
+    cout << tmprv2 << endl;
+}
+
+template <>  // 全特化，并非是 普通函数版本
+void tfunc<int, double>(int& tmprv1, double& tmprv2)
+{
+    cout << "tfunc(int&, double&) 全特化版本" << endl;
+    cout << tmprv1 << endl;
+    cout << tmprv2 << endl;
+}
+
+int main(void)
+{
+    // tfunc(1, 2.0); // 错误，没有匹配类型，因为这里是右值（上面要求的都是 左值）
+    int i = 12;
+    double d = 15.0;
+    tfunc(i, d);  // tfunc(int&, double&) 全特化版本
+}
+```
+
+全特化实际上等价于 手动的实例化了一个 函数模板，并不等价于一个函数重载
+
+编译器考虑顺序：普通函数 ---> 全特化 ---> 泛化版本
+
+数据类型模板参数、指针类型模板参数。编译器看来，很可能会接受：数组类型的
+
+### 偏特化
+
+偏特化，也叫做局部特化：
+
+#### 数量上
+
+1. 模板参数数量上的偏特化（这种理解是错误的）
+
+```cxx
+// template <typename U> 错误的
+// void tfunc<double, U>(double& tmprv1, U& tmprv2) /* function template partial specialization is not allowed */
+// {
+//     cout << "tfunc(T&, U&) 泛化版本" << endl;
+//     cout << tmprv1 << endl;
+//     cout << tmprv2 << endl;
+// }
+```
+
+但是可以重载 ---> 单独的看成一个函数模板
+
+```cxx
+template <typename U>
+void tfunc(double& tmprv1, U& tmprv2)
+{
+    cout << "tfunc(T&, U&) 泛化版本" << endl;
+    cout << tmprv1 << endl;
+    cout << tmprv2 << endl;
+}
+```
+
+#### 范围上
+
+2. 模板参数范围上的偏特化
+
+范围上的：
+
+int ---> const int（类型变小）
+
+T ---> T\*
+
+T ---> T&
+
+T ---> T&&
+
+实际上，对于函数模板来讲，也不存在模板参数范围上的偏特化。
+（但是类模板是有的，有点奇怪）
+
+因为这种所谓 模板参数范围上的偏特化，实际上是函数模板的重载
+
+```cxx
+/* 这种实际上是重载 */
+template <typename T, typename U>
+void tfunc(const T& tmpRv1, U& tmpRv2)
+{
+    cout << "tfunc(const T&, U&) 重载版本" << endl;
+}
+```
+
+反正不能偏特化就重载，这无所谓
+
+## 6 - 缺省参数
+
+函数模板的缺省参数是可以放前面的，
+但是类模板就不一样，类模板的缺省不能放前面
+
+## 7 - 非类型模板参数
+
+### 基本概念
+
+### 比较奇怪的语法

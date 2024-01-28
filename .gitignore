@@ -1,3 +1,7 @@
 .*
 !.gitignore
 output
+*.o
+*.ii
+*.s
+*.bc
