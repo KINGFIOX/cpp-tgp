@@ -203,3 +203,242 @@ int main(void)
 2. `B bobj3 { 15 }`这种形式正好就相当于调用了一个 类模板 B 的一个带参数（参数为 15）的构造函数，尽管 类模板 B 中 实际上并不存在构造函数。
 3. 因为`template<typename T> B(T) -> B<T>`推断指南存在，当调用了类模板 B 带一个参数的构造函数时，推断出来的类型为`B<T>`，
    所以最终推断出来的类型为`B<int>`类型
+
+## 2 - 类模板的各种特化
+
+一般来讲：所写的类模板都是泛化的类模板
+
+特化的类模板是通过泛化的类模板来生成的，所以：得先有泛化版本，才能有特化版本。
+
+所谓特化版本，就是特殊对待的版本。
+
+全特化：就是把 TC 这个泛化版本的所有模板参数都用具体的类型来代替，构成一个特殊的版本（全特化版本）
+
+### 类模板的全特化
+
+```cxx
+template <typename T, typename U>
+struct TC {
+    TC()
+    {
+        cout << "TC 泛化版本 构造函数" << endl;
+    }
+
+    void functest1()
+    {
+        cout << "functest1 泛化版本" << endl;
+    }
+};
+
+template <>
+struct TC<int, int> {
+    TC()
+    {
+        cout << "TC<int, int> 特化版本 构造函数" << endl;
+    }
+};
+
+int main(void)
+{
+	mytc2.functest1(); /* 错误： No member named 'functest1' in 'TC<int, int>' */
+}
+```
+
+就是我们全特化以后，就是一个全新的类了，那么也就要在新类型中 定义函数 才能正常使用。
+（尽管这里是全特化，但是更像是一个普通类、全新的类了）
+
+在理解上：泛化版本的类模板 与 全特化版本的类模板，这是名字相同（都叫 TC），
+在其他方面，可以把实例化后的他们理解成是两个完全不同的类
+
+全特化版本的类外定义：
+
+```cxx
+template <>
+struct TC<int, int> {
+    TC()
+    {
+        cout << "TC<int, int> 特化版本 构造函数" << endl;
+    }
+
+    void functest1();
+};
+
+void TC<int, int>::functest1()
+{
+    cout << "TC<int, int>::functest1" << endl;
+}
+```
+
+### 普通成员函数的全特化
+
+```cxx
+template <typename T, typename U>
+struct TC {
+    TC()
+    {
+        cout << "TC 泛化版本 构造函数" << endl;
+    }
+
+    void functest1()
+    {
+        cout << "functest1 泛化版本" << endl;
+    }
+};
+
+template <>
+void TC<double, int>::functest1()
+{
+    cout << "普通成员函数 TC<double, int>::functest1 的全特化版本" << endl;
+}
+
+int main(void)
+{
+    TC<double, int> a;
+    a.functest1(); // 普通成员函数 TC<double, int>::functest1 的全特化版本
+}
+```
+
+### 静态成员函数的全特化
+
+```cxx
+template <typename T, typename U>
+struct TC {
+    TC()
+    {
+        cout << "TC 泛化版本 构造函数" << endl;
+    }
+
+    void functest1()
+    {
+        cout << "functest1 泛化版本" << endl;
+    }
+
+    static int m_stc; /* 声明一个静态成员变量 */
+};
+
+template <typename T, typename U>
+int TC<T, U>::m_stc = 50; /* 定义一个静态成员变量 */
+
+template <> /* 静态成员变量的全特化 */
+int TC<int, int>::m_stc = 100;
+
+int main(void)
+{
+    TC<double, float> df;
+    cout << df.m_stc << endl; // 50
+
+    TC<int, int> ii;
+    cout << ii.m_stc << endl; // 100
+}
+```
+
+如果进行了：普通成员函数的全特化，或者是静态成员变量的全特化，
+那么就无法用这些全特化时指定的类型 来对 整个类模板进行全特化
+
+```cxx
+template <> /* 静态成员变量的全特化 */
+int TC<int, int>::m_stc = 100;
+
+template <>
+struct TC<int, int> { }; /* 错误：Explicit specialization of 'TC<int, int>' after instantiation */
+```
+
+上面这个错误的原因：普通成员函数全特化以后，会隐式的实例化这个类`instantiation`。
+然而我们这里又重新定义（特化`specialization`）了一个类
+
+下面这个错误的原因：
+我们相当于是新创建了一个类，但是这个类中不包含`m_stc`，
+所以下面就没找到
+
+```cxx
+template <>
+struct TC<int, int> { };
+
+template <> /* 错误：Extraneous 'template<>' in declaration of variable 'm_stc */
+int TC<int, int>::m_stc = 100;  /* 错误：No member named 'm_stc' in 'TC<int, int>' */
+```
+
+这个改一下就行了
+
+```cxx
+template <>
+struct TC<int, int> {
+    static int m_stc;
+};
+
+int TC<int, int>::m_stc = 100;
+```
+
+### 类模板的偏特化
+
+#### 模板参数 数量上 的偏特化
+
+```cxx
+template <typename T, typename U>
+struct TC {
+    TC()
+    {
+        cout << "TC 泛化版本 构造函数" << endl;
+    }
+
+    void functest1()
+    {
+        cout << "functest1 泛化版本" << endl;
+    }
+
+    static int m_stc; /* 声明一个静态成员变量 */
+};
+
+template <typename U>
+struct TC<float, U> {
+    TC()
+    {
+        cout << "TC<float, U> 偏特化版本构造函数" << endl;
+    }
+
+    void functest();
+};
+
+template <typename U>
+void TC<float, U>::functest()
+{
+    cout << "TC<float, U>::functest() 偏特化版本" << endl;
+}
+
+int main(void)
+{
+    TC<float, int> myTc4;
+    myTc4.functest();
+
+    return 0;
+}
+```
+
+#### 模板参数 范围上 的偏特化
+
+下面例子从：T ---> const T，U ---> U\*
+
+```cxx
+template <typename T, typename U>
+struct TC<const T, U*> {
+    TC()
+    {
+        cout << "TC<const T, U*> 偏特化版本构造函数" << endl;
+    }
+
+    void functest();
+};
+
+template <typename T, typename U>
+void TC<const T, U*>::functest()
+{
+    cout << "TC<const T, U*>::functest 偏特化版本" << endl;
+}
+
+int main(void)
+{
+    TC<const int, int*> t; // TC<const T, U*> 偏特化版本构造函数
+    t.functest(); // TC<const T, U*>::functest 偏特化版本
+    return 0;
+}
+```
