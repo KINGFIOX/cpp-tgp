@@ -447,10 +447,373 @@ int main(void)
 
 ### 常规缺省参数
 
+类型模板参数缺省值规矩：如果某个模板参数有缺省值，那么从这个有缺省值的模板参数开始，后面的所有模板参数都要有缺省值
+
+```cxx
+template <typename T = int, typename U> /* 错误：U: Template parameter missing a default argument */
+struct TC {
+    TC()
+    {
+        cout << "TC 泛化版本的构造函数" << endl;
+    }
+
+    void functest1()
+    {
+        cout << "functest1 泛化版本" << endl;
+    }
+};
+
+int main(void)
+{
+    TC<> mytc5; /* <default, default> */
+    TC<double> mytc6; /* <double, default> */
+    TC<double, double> mytc7; /* <double, double> */
+    return 0;
+}
+```
+
+类模板偏特化版本中的类型模板参数不可以有缺省值
+
+```cxx
+/**
+ * @brief 偏特化版本（不能有缺省值！）
+ *
+ * @tparam T
+ */
+template <typename T = char> /* 错误： Default template argument in a class template partial specialization */
+struct TC<T, int> { };
+```
+
+如果特化版本中没有缺省值，我们知道：特化只是泛化的子集。编译器会在泛化的版本中推断的
+
 ### 后面的模板参数以来前面的模板参数
+
+```cxx
+template <typename T, typename U = T*>
+struct TC {
+    /* ... */
+};
+
+int main(void)
+{
+    TC<double> mytc5; /* <double, double*> */
+    TC<double, int> mytc6; /* <double, int> */
+}
+```
 
 ### 在模板声明中指定缺省参数
 
+不建议采用这种语法，这种语法非常不常用。
+
+```cxx
+// 声明 1
+template <typename T, typename U, typename V = int, typename W = char>
+struct TC;
+
+// 声明 2 （错误写法）
+/* 错误： V W : Template parameter redefines default argument */
+template <typename T, typename U = double, typename V = int, typename W = char>
+struct TC;
+```
+
+下面这种写法是正确的
+
+```cxx
+// 声明 1
+template <typename T, typename U, typename V = int, typename W = char>
+struct TC;
+
+// 声明 2
+template <typename T, typename U = double, typename V, typename W>
+struct TC;
+
+// 定义
+template <typename T, typename U, typename V, typename W>
+struct TC { };
+
+int main(void)
+{
+    TC<char> mytc; /* <char, default, default, default> */
+}
+```
+
 ## 4 - 类型别名
 
+考虑到类型名比较长，所以一般用 typedef，或者 using 给这些类型名 起一个额外的别名 来简化书写
+
+```cxx
+typedef TC<int> TF_TC;
+using U_TC = TC<double>; // 这种编程语法比较好
+
+int main(void)
+{
+    TF_TC myTC1;
+    U_TC myTC2;
+}
+```
+
+推荐使用 using（C++11 以后）
+
 ## 5 - 非类型模板参数
+
+```cxx
+template <typename T, typename U, auto arrsize = 8>
+struct TC {
+    T m_arr[arrsize]; /* 因为 arrsize 是：编译期间就确定的 */
+    void functest();
+};
+
+template <typename T, typename U, auto arrsize>
+void TC<T, U, arrsize>::functest()
+{
+    cout << "functest 泛化版本" << endl;
+}
+
+int main(void)
+{
+    TC<double, double> mytc1;
+    for (size_t i = 0; i < 8; ++i) {
+        mytc1.m_arr[i] = static_cast<double>(i);
+    }
+    cout << mytc1.m_arr[7] << endl; // 7
+
+    TC<double, double, 18> mytc2;
+    mytc2.m_arr[10] = 16.8 / 0.0; // inf
+    cout << mytc2.m_arr[10] << endl;
+}
+```
+
+非类型模板参数，数值是常量，类型一般也限定在整型，类型可以是`auto`
+
+### 全局指针不能作为函数参数
+
+```cxx
+template <const char* p>
+struct TC {
+    TC()
+    {
+        printf("TC::TC 执行了, p= %s\n", p);
+    }
+};
+
+const char* g_s = "hello"; /* 全局指针 */
+
+int main(void)
+{
+    TC<g_s> myTC; /* 错误： Non-type template argument is not a constant expression */
+    return 0;
+}
+```
+
+但是 数组 居然可以！
+（感觉这个是编译器直接不允许这种）
+
+数组是指针常量。因为指针有被修改成指向其他的可能。
+
+```cxx
+template <const char* p>
+struct TC {
+    TC()
+    {
+        printf("TC::TC 执行了, p= %s\n", p);
+    }
+};
+
+const char g_s[] = "hello"; /* 常量数组 */
+int main(void)
+{
+    TC<g_s> myTC;
+    return 0;
+}
+```
+
+### 字符串常量也是无法作为 模板参数
+
+```cxx
+int main(void) {
+	TC<"hello"> myTc2; /* 错误：Pointer to subobject of string literal is not allowed in a template argument */
+}
+```
+
+就是如果 字面量相同，都是 "hello"。
+
+字符串常量，有的可能是存储在 “字面量池” 中；有的可能是存储在 “全局常量区“ 中。
+两个 字面上 是一样的，但是 内存地址可能不一样。
+
+同理：为什么也不允许 float、double 作为 非类型模板参数 存在呢？
+因为 浮点数保存的并不是一个精确的数字。
+比方说，我们会`f1 - f2 <= 10e-6`来判断相等。
+
+## 6 - 成员函数模板
+
+### 基本概念、构造函数模板
+
+```cxx
+template <typename T1>
+class A {
+public:
+    template <typename T2>
+    A(T2 v1, T2 v2); /* 构造函数模板，引入了自己的模板参数 T2 */
+
+    template <typename T3> /* 普通成员函数 */
+    void myft(T3 tmpt)
+    {
+        cout << tmpt << endl;
+    }
+
+    T1 m_ic;
+    static constexpr int m_stcvluae = 200;
+};
+
+/* 类外实现类模板的构造函数 */
+template <typename T1>  // 这两个 template 不能交换顺序
+template <typename T2>
+A<T1>::A(T2 v1, T2 v2)
+{
+    cout << "A<T1>::A(T2 v1, T2 v2) 执行了!" << endl;
+}
+
+int main(void)
+{
+    A<float> a(1, 2); /* 函数是可以推断的 */
+}
+```
+
+上面这个：实例化出来了`A<float>`这样一个类型，并用 int 来实例化构造函数
+
+一些说法
+
+1. 类模板中的成员函数，只有源程序代码中出现调用这些成员函数代码时，这些成员函数才会出现在一个 实例化了的 类模板中。
+
+如果没有`A<float> a2(1.1, 2.2);`，编译器也就不会实例化出来`A<float>::A(double v1, double v2)`
+
+2. 类模板中的成员函数模板，只有源程序代码中出现 这些成员函数模板的 来嘛时，这些成员函数模板的具体实例才会 出现在一个实例化了的类模板中。
+
+3. 目前编译器并不支持 虚成员函数模板
+
+因为，虚函数表 vtbl 的大小的是固定的。
+成员函数模板只有被调用的时候才能被实例化出来，
+
+如果允许虚函数模板，则每次有人用新的参数类型调用该函虚函数模板时，
+就必须啊给对应的虚函数表再增加一项，这意味着：只有链接程序才能去构造虚函数表并在表中设置有关函数，
+因此，成员函数模板绝不能是虚的。
+
+但是，类模板中可以有普通的虚成员函数，这并没有什么问题。
+因为，普通成员函数如果不被调用的情况下不会被实例化出来。
+但是，对于虚函数，不管是否被调用，编译器都会把他实例化出来，
+因为编译器要创建 虚函数表 vtbl，该表中的具体表项都对应一个虚函数地址，
+所以编译器必然得把所有虚函数都实例化出来。
+
+#### 类模板的 构造函数 与 构造函数模板
+
+```cxx
+template <typename T1>
+class A {
+public:
+    template <typename T2>
+    A(T2 v1, T2 v2); /* 构造函数模板，引入了自己的模板参数 T2 */
+
+    A(double v1, double v2)
+    {
+        cout << "A<T1>::A(double, double) 执行了" << endl;
+    }
+
+    A(T1 v1, T1 v2) /* 不是构造函数模板，而是构造函数 */
+    {
+        cout << "A<T1>::A(T1, T1) 执行了" << endl;
+    }
+};
+
+int main(void)
+{
+    A<float> a2(1.1, 2.2); /* A::A(double, double) */
+    A<float> a3(1.1f, 2.2f); /* A::A(T1, T1) */
+}
+```
+
+### 拷贝构造函数模板 与 拷贝赋值运算符模板
+
+```cxx
+template <typename T1>
+class A {
+public:
+    /* 拷贝构造函数模板 */
+    template <typename U>
+    A(const A<U>& other)
+    {
+        cout << "A::A(const A<U>& other) 拷贝构造函数模板执行了!" << endl;
+    }
+
+    /* 拷贝构造赋值 模板 */
+    template <typename U>
+    A<T1>& operator=(const A<U>& other)
+    {
+        cout << "A::operator=(const A<U>& other) 拷贝赋值运算符模板执行了 !" << endl;
+        return *this;
+    }
+};
+```
+
+注意：拷贝构造函数模板时不是 拷贝构造函数；拷贝赋值运算符模板 不是 拷贝赋值运算符函数（模板不是函数）
+
+因为拷贝构造函数或者拷贝赋值运算符，要求拷贝的对象类型完全相同，
+而 拷贝构造函数模板 或者 拷贝赋值运算符，要求拷贝的对象类型并不一样相同`template <typename U> A(const A<U>& other)`
+
+```cxx
+int main(void)
+{
+    A<float> a3(11.1f, 12.2f);
+    a3.m_ic = 3.14;
+    A<float> a4(a3); /* 没有执行 拷贝构造模板代码 */
+    cout << a4.m_ic << endl; // 3.14
+}
+```
+
+执行上面这一段代码，发现两个问题：
+
+1. `A<float> a4(a3);` 代码行没有输出任何结果，这表示拷贝构造函数模板中的代码没有执行
+2. `a4.m_ic`的值确实变成了 16.2。这说明确实是通过 a3 拷贝构造生成的 a4
+   a3、a4 类型相同`A<float>`，本该执行拷贝构造函数，但是因为类模板 A 中没有拷贝构造函数，
+   所以编译器内部实际是执行了 bitwise 的拷贝动作，使 a4.m_ic 值变成了 16.2 了。
+
+但是为什么不调用 拷贝构造函数模板呢？（这个拷贝构造模板，这个就像是一个 有参构造）
+固定搭配（死记硬背）秒了：拷贝构造函数模板 永远不可能称为 拷贝构造函数。
+编译器不会调用 拷贝构造函数模板，来代替 拷贝构造函数。
+
+那么什么时候调用 拷贝构造函数模板呢？类型不同的时候就会调用，比方说`A<float> a5( A<double>() )`
+
+但是很曹丹的就是：
+（非常不建议这么写，因为 拷贝构造函数都是有 const 的）
+
+```cxx
+template <typename T1>
+class A {
+public:
+    T1 m_ic;
+
+public:
+    // /* 拷贝构造函数模板 */
+    // template <typename U>
+    // A(const A<U>& other)
+    // {
+    //     cout << "A::A(const A<U>& other) 拷贝构造函数模板执行了!" << endl;
+    // }
+
+    /* 拷贝构造函数模板 */
+    template <typename U>
+    A(A<U>& other)
+    {
+        cout << "A::A(const A<U>& other) 拷贝构造函数模板执行了!" << endl;
+    }
+};
+
+int main(void)
+{
+    A<float> a3(11.1f, 12.2f);
+    a3.m_ic = 3.14;
+    A<float> a4(a3); /* A::A(const A<U>& other) 拷贝构造函数模板执行了! */
+    cout << a4.m_ic << endl; // (乱码，未初始化)
+}
+```
+
+**拷贝赋值运算符模板 与 拷贝构造函数模板 的行为是相同的**
