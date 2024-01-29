@@ -486,7 +486,7 @@ struct TC<T, int> { };
 
 如果特化版本中没有缺省值，我们知道：特化只是泛化的子集。编译器会在泛化的版本中推断的
 
-### 后面的模板参数以来前面的模板参数
+### 后面的模板参数以前的模板参数
 
 ```cxx
 template <typename T, typename U = T*>
@@ -817,3 +817,467 @@ int main(void)
 ```
 
 **拷贝赋值运算符模板 与 拷贝构造函数模板 的行为是相同的**
+
+下面是真正的拷贝构造函数：
+
+```cxx
+class A{
+	/* 真正的 拷贝构造函数 */
+    A(const A& other)
+    {
+        cout << "A<T1>::A(const A<T1>& other) 拷贝构造函数执行了" << endl;
+    }
+};
+
+int main(void) {
+    A<float> a3(11.1f, 12.2f);
+    a3.m_ic = 3.14;
+    A<float> a4(a3); /* A<T1>::A(const A<T1>& other) 拷贝构造函数执行了 */
+    cout << a4.m_ic << endl;
+}
+```
+
+#### const ? 非 const ? （该有 const 就要有 const）
+
+```cxx
+template <typename T1>
+class A {
+    T1 m_ic;
+
+public:
+    /* 拷贝构造函数模板 */
+    template <typename U>
+    A(A<U>& other)
+    {
+        cout << "A::A(const A<U>& other) 拷贝构造函数模板执行了!" << endl;
+    }
+
+    /* 真正的 拷贝构造函数 */
+    A(const A& other)
+    {
+        cout << "A<T1>::A(const A<T1>& other) 拷贝构造函数执行了" << endl;
+    }
+};
+
+int main(void)
+{
+    A<float> a3(11.1f, 12.2f);
+    a3.m_ic = 3.14;
+    A<float> a4(a3); /* A::A(const A<U>& other) 拷贝构造函数模板执行了! */
+    cout << a4.m_ic << endl;
+}
+```
+
+### 特化
+
+#### 类内实现
+
+```cxx
+class A{
+public:
+    template <typename T3, typename T4>
+    void myft(T3 tmpt1, T4 tmpt2)
+    {
+        cout << "myft(T3, T4) 泛化版本" << endl;
+        cout << tmpt1 << endl;
+        cout << tmpt2 << endl;
+    }
+
+    template <typename T4>
+    void myft(int tmpt1, T4 tmpt2)
+    {
+        cout << "myft(int, T4) 偏特化版本" << endl;
+        cout << tmpt1 << endl;
+        cout << tmpt2 << endl;
+    }
+
+    template <>
+    void myft(int tmpt1, float tmpt2)
+    {
+        cout << "myft(int, float) 全特化版本" << endl;
+        cout << tmpt1 << endl;
+        cout << tmpt2 << endl;
+    }
+};
+
+int main(void)
+{
+    A<float> a3(11.1f, 12.2f);
+    a3.myft(3, 2.5f); // myft(int, float) 全特化版本
+    a3.myft(3, 3.5); // myft(int, T4) 偏特化版本
+}
+```
+
+#### 类外实现 偏特化
+
+```cxx
+template <typename T1>
+template <typename T4>
+void A<T1>::myft(int tmpt1, T4 tmpt2)
+{
+    cout << "myft(int, T4) 偏特化版本" << endl;
+    cout << tmpt1 << endl;
+    cout << tmpt2 << endl;
+}
+```
+
+#### 类外实现 全特化
+
+```cxx
+template <typename T1>
+/* 错误： Out-of-line definition of 'myft' does not match any declaration in 'A<T1>' */
+void A<T1>::myft(int tmpt1, float tmpt2)
+{
+    cout << "myft(int, float) 全特化版本" << endl;
+    cout << tmpt1 << endl;
+    cout << tmpt2 << endl;
+}
+```
+
+有些资料显示：目前 C++ 标准不允许在类模板之外 全特化 一个未被特化的类模板的成员函数
+
+整体感觉：类模板中的成员函数全特化可能还不算太完善，写代码时要注意测试。
+在实际上工作中：尽量把这些特化版本写在类模板内部，然后类模板也要写在头文件中
+
+```cxx
+template <>
+class A<float> {
+public:
+    A(float v1, float v2) /* 不是构造函数模板，而是构造函数 */
+    {
+        cout << "A<T1>::A(T1, T1) 执行了" << endl;
+    }
+
+    template <typename T3, typename T4>
+    void myft(T3 tmpt1, T4 tmpt2)
+    {
+        cout << "A<char*>::myft(int, float) 泛化版本" << endl;
+        cout << tmpt1 << endl;
+        cout << tmpt2 << endl;
+    }
+
+    /* 可声明可不声明 */
+    // template <>
+    // void myft(int tmpt1, float tmpt2);
+};
+
+/* A<float>中有泛化版本的 myft，因此不用在 A<float> 中声明如下的全特化版本了 */
+template <>
+void A<float>::myft(int tmpt1, float tmpt2)
+{
+    cout << "myft(int, float) 全特化版本" << endl;
+    cout << tmpt1 << endl;
+    cout << tmpt2 << endl;
+}
+
+int main(void)
+{
+    A<float> a3(11.1f, 12.2f);
+    a3.myft(3, 3.5f); // myft(int, float) 全特化版本
+}
+```
+
+## 7 - 类/类模板 中的 类模板（嵌套）
+
+```cxx
+template <>
+class A<float> {
+public:
+    template <typename U>
+    class OtherC {
+    public:
+        void myfOC()
+        {
+            cout << "myfOC 执行了" << endl;
+        }
+    };
+};
+```
+
+其实就看成两个毫无关系的类就行了。
+
+## 8 - 变量模板 与 成员变量模板
+
+变量模板：variable templates（C++14 以后引入）（放到全局空间中）
+
+```cxx
+template <typename T>
+T g_myVar {}; /* 初始化 */
+
+int main(void)
+{
+    g_myVar<float> = 15.6f;
+    g_myVar<int> = 13;
+
+    cout << g_myVar<float> << endl; // 15.6
+    cout << g_myVar<int> << endl; // 13
+}
+```
+
+变量模板，从感觉上，变量模板与函数模板有些相似，看起来像一个没有参数，
+但是有返回值的函数模板
+
+#### 零初始化
+
+1. `int temp1 = int();`
+
+2. `int tempt2 = {};`
+
+3. `int temp3 = int{};`
+
+pointer ---> nullptr；int ---> 0；bool ---> false。
+
+### 变量模板的特化
+
+#### 全特化
+
+```cxx
+template <typename T>
+T g_myVar {}; /* 初始化 */
+
+template <>
+char g_myVar<double> {};
+
+int main(void)
+{
+    cout << typeid(g_myVar<double>).name() << endl; // c
+}
+```
+
+#### 偏特化
+
+```cxx
+template <typename T>
+T g_myVar<T*> { 120 }; /* 要求 T* 必须依赖于 T */
+
+int main(void)
+{
+    cout << typeid(g_myVar<int*>).name() << endl;
+    cout << g_myVar<int*> << endl;
+}
+```
+
+上面这个看起来是： 范围上的偏特化
+
+### 默认模板参数
+
+```cxx
+template <typename T = int>
+T g_myVar {}; /* 初始化为0 */
+
+int main(void)
+{
+    g_myVar<> = 26;
+    cout << g_myVar<> << endl;
+    // cout << g_myVar << endl; /* 错误： Use of variable template 'g_myVar' requires template arguments */
+}
+```
+
+不能忽略`<>`尖括号
+
+### 非类型模板参数
+
+```cxx
+template <typename T = int, int arrsize = 20>
+T g_myVar[arrsize];
+
+int main(void)
+{
+    for (int i = 0; i < 15; i++) {
+        g_myVar<int, 15>[i] = i;
+    }
+
+    for (int i = 0; i < 15; i++) {
+        cout << g_myVar<int, 15>[i] << endl;
+    }
+    return 0;
+}
+```
+
+### 变量模板的另一种形式
+
+```cxx
+template <typename T>
+struct B {
+    const static T value = { 160 };
+    // constexpr static T value = { 160 }; 也是可以的
+};
+
+template <typename T>
+int g_myVar = B<T>::value;
+
+int main(void)
+{
+    cout << g_myVar<int> << endl; // 160
+    g_myVar<int> = 152;
+    cout << g_myVar<int> << endl; // 152
+    cout << B<int>::value << endl; // 160
+    return 0;
+}
+```
+
+注意这种写法
+
+### 成员变量模板
+
+```cxx
+template <typename T>
+class D {
+public:
+    template <typename W>
+    static W m_tpi; // 静态成员变量模板声明
+};
+
+// 静态成员类外初始化，别忘了
+template <typename T>
+template <typename W>
+W D<T>::m_tpi = {};
+
+int main(void)
+{
+    cout << D<float>::m_tpi<int> << endl; // 5
+    D<float>::m_tpi<int> = 150;
+    cout << D<float>::m_tpi<int> << endl; // 150
+    cout << D<int>::m_tpi<int> << endl; // 5
+    cout << D<int>::m_tpi<float> << endl; // 5
+}
+```
+
+## 9 - 别名模板 与 成员别名模板
+
+别名模板：alias templates（C++11 以后）
+引入的目的：不但可以简化书写，而且可以达到一些通过其他手段难以达到的效果
+
+```cxx
+template <typename T>
+using str_map_t = map<string, T>; /* 别名模板 */
+
+int main(void)
+{
+    str_map_t<int> m; // 相当于是 map<string, int>
+    m.insert({ "first", 1 });
+    m.insert({ "second", 2 });
+
+    for (auto v : m) {
+        cout << v.first << " " << v.second << endl;
+    }
+}
+```
+
+#### 成员别名模板
+
+```cxx
+template <typename T>
+class E {
+    template <typename U>
+    using str_map_t = map<string, U>;
+
+public:
+    str_map_t<int> m;
+};
+
+int main(void)
+{
+    E<float> e;
+    e.m.insert({ "first", 1 });
+    e.m.insert({ "second", 2 });
+    for (auto v : e.m) {
+        cout << v << endl;
+    }
+}
+```
+
+## 10 - 模板模板参数
+
+模板模板参数：template template parameters，让模板参数本身称为模板的意思
+
+1. int：简单类型、内部类型
+2. vector，list：是 C++ 标准库中的容器，类模板（类名），`vector<int>` 或者 `list<double>`就属于模板被实例化了的参数，称之为 类型（类类型）
+
+需求：创建 myclass 的类模板，成员变量 myc，是一个容器。
+比方说`myclass <int, vector> myvector;`，其中`int`是容器中的元素类型，vector 是容器类型。
+
+但是，下面这段代码是错误的：
+
+```cxx
+/* 错误示范 */
+template <typename T, typename Container = vector>
+class myclass {
+public:
+    Container<T> myc;
+};
+```
+
+因为是不符合语意的，`typename`后面应该跟着一个 类型，而不是一个 类模板，
+这里的`std::vector`是一个类模板，并不是一个类型。
+
+Container，不叫 类型 模板参数，而叫 模板 模板参数，
+表示这个模板参数本身又是一个模板。
+
+```cxx
+template <
+    typename T,
+    // typename Container = vector
+    template <class> class Container = vector // 这就是一个模板模板参数，写法比较固定，这里的名字叫Container，叫U也可以
+>
+class myclass {
+public:
+    Container<T> myc;
+};
+```
+
+这句话`template<class> class Container`就像是定义一个普通的类一样。
+
+### template <typename W> typename Container
+
+```cxx
+template <
+    typename T,
+    // typename Container = vector
+    // template <class> class Container = vector
+    template <typename W> class Container = vector // 这两段话实际上是同一个意思，只不过上面是 省略了这个W
+	// 这个 W 在这个例子是没有用，W 也 不能放在 myclass 中使用。但是 W 也是有用的
+	// 这个 W 叫做 Container(模板模板参数) 的模板参数
+    >
+class myclass {
+public:
+    Container<T> myc;
+};
+```
+
+下面这种语法，占位也是允许的
+
+```cxx
+template <
+    typename T,
+    template <typename W> class = vector // 省略
+    >
+class myclass {
+public:
+    // Container<T> myc; // 因为上面 Container 省略了，这里不能用了
+};
+```
+
+上面这段代码还是有些问题的，gpt 给了如下代码：
+
+```cxx
+template <
+    typename T,
+    template <typename W, typename = std::allocator<W>> class Container = vector
+>
+class myclass {
+public:
+    myclass() {
+        for (int i = 0; i < 10; i++) {
+            myc.push_back(i);
+        }
+    }
+
+public:
+    Container<T> myc;
+};
+```
+
+## 11 - 共用体模板（联合模板）
+
+可以把联合体理解成一种 类类型。联合也支持模板化
