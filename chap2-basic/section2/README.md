@@ -1228,6 +1228,9 @@ public:
 
 这句话`template<class> class Container`就像是定义一个普通的类一样。
 
+明白这个是什么意思了，vector 是模板，想想 vector 是如何定义的`template<typename T> class vector;`
+和上面的如出一辙，只不过我们把这里的`vector`换成了一个参数`Container`
+
 ### template <typename W> typename Container
 
 ```cxx
