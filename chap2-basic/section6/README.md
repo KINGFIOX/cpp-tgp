@@ -1,4 +1,4 @@
-# chap6 - 模板的一些特殊继承关系说
+# chap2_6 - 模板的一些特殊继承关系说
 
 ## 1 - 奇异（奇特）的递归模板模式（curiously recurring template pattern, CRTP）
 
