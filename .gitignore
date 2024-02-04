@@ -1,5 +1,7 @@
 .*
 output
+build
+compile_commands.json
 *.o
 *.ii
 *.s
