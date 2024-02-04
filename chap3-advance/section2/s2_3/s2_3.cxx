@@ -6,13 +6,13 @@ using namespace std;
 
 void test_func(int, int) { }
 
-template <typename T>
-void func(T&& tmprv)
+template <typename t>
+void func(t&& tmprv)
 {
     cout << "---------- begin ----------" << endl;
 
     using boost::typeindex::type_id_with_cvr;
-    cout << "T=" << type_id_with_cvr<T>().pretty_name() << endl;
+    cout << "t=" << type_id_with_cvr<t>().pretty_name() << endl;
     cout << "tmprv=" << type_id_with_cvr<decltype(tmprv)>().pretty_name() << endl; /* */
     cout << typeid(tmprv).name() << endl;
 
