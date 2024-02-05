@@ -240,3 +240,30 @@ int main() {
 在移动操作后，源对象（在这个例子中是 `original`）已经将其资源转移给了目标对象（`moved`），因此原对象的状态是未定义的。
 为了代码安全，我们通常不应该在移动操作后再使用源对象。
 如果确实需要再次使用它，应该先确保它处于有效的状态，比如在移动构造函数中将其成员清空或重置。
+
+## 返回类型的 typename
+
+在 C++ 中，关键字 `typename` 用于指明紧随其后的名称是一个类型。
+在你提供的模板函数代码中，`typename` 出现了两次，每一次都有其特定的用途。
+
+首先，来看一下整段代码：
+
+```cpp
+template<typename T>
+typename std::enable_if<(sizeof(T) > 2)>::type funcEI() {}
+```
+
+第一个 `typename` 用于声明模板参数 `T` 是一个类型。这是模板声明的标准语法。
+
+第二个 `typename` 出现在返回类型的上下文中，它的作用是告诉编译器，`std::enable_if<(sizeof(T) > 2)>::type` 是一个类型。
+由于 `std::enable_if` 是一个模板结构体，其 `type` 成员依赖于模板参数，因此在编译时不一定被解析为一个类型，除非它确实存在。
+在这种依赖上下文中，`typename` 的用途就是为了指示编译器，`std::enable_if<...>::type` 是一个类型，
+而不是一个成员变量或者其他东西。
+
+简单来说，第二个 `typename` 是必需的，因为它告诉编译器 `type` 是一个从 `std::enable_if` 依赖名称中嵌套得到的类型。
+如果省略这个 `typename`，编译器将会报错，因为它无法确定 `std::enable_if<...>::type` 是什么。
+
+这种用法通常在模板元编程中遇到，尤其是涉及到类型萃取（type traits）和 SFINAE（Substitution Failure Is Not An Error）技术时。
+在这个例子中，`std::enable_if` 用于条件编译：只有当 `T` 的大小大于 2 字节时，`funcEI` 函数才会被实例化。
+如果 `sizeof(T) <= 2`，由于 `std::enable_if` 没有 `type` 成员，所以模板实例化会失败，
+但这不会导致编译错误，而是简单地导致 `funcEI` 函数不可用。这是 SFINAE 的一个典型应用场景。

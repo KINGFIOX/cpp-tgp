@@ -492,7 +492,7 @@ int main(void)
 {
     // funcMiddle_Temp1(funcLast4, NULL);
     // /* 错误：f(std::forward<T>(t)...); ：Cannot initialize a parameter of type 'char *' with an rvalue of type 'long' */
-    // /* 解决方案：使用nullptr */
+    // /* 解决方案：使用 nullptr */
 
     funcMiddle_Temp1(funcLast4, nullptr);
 }
