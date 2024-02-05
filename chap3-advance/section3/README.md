@@ -322,10 +322,178 @@ void funcMiddle_Temp()
 
 ## 4 - 在构造函数模板中使用 完美转发范例
 
-## 5 - 在可变参数模板中使用完美转发范例
+原始的例子：
 
-### 常规的在可变参模板使用完美转发
+```cxx
+#include <iostream>
 
-### 将目标函数中的返回值通过转发函数返回给调用者函数
+using namespace std;
+
+class Human {
+public:
+    /* 构造函数 */
+    Human(const string& tmpName)
+        : m_SName(tmpName)
+    {
+        cout << "Human(const string& tmpName) 执行了" << endl;
+    }
+
+    // Human(string&& tmpname) : m_SName(tmpname)
+    Human(string&& tmpname)
+        : m_SName(std::move(tmpname)) /* move 只是将左值变成一个右值，并不具有移动能力 */
+    /* 这里就是会执行 string 的移动构造函数（接受右值） */
+    /* 将 tmpName 移走，这个不是 std::move 的行为，而是 string 的移动构造函数做的 */
+    /* 这个时候 tmpName 就空了 */
+    {
+        cout << "Human(string&& tmpName) 执行了" << endl;
+    }
+
+private:
+    string m_SName;
+};
+
+int main(void)
+{
+    string sName = "ZhangSan";
+    Human MyHuman1(sName); // Human(const string& tmpName) 执行了
+    Human MyHuman2("LiSi"); // Human(string&& tmpName) 执行了
+}
+```
+
+我们现在就是要将`Human(String&&)`和`Human(const String& )`合二为一。
+
+```cxx
+class Human {
+public:
+    /**
+     * @brief 构造函数模板
+     *
+     * @tparam T
+     * @param tmpName
+     */
+    template <typename T>
+    Human(T&& tmpName)
+        : m_SName(std::forward<T>(tmpName)) /* 完美转发 */
+    {
+        cout << "Human(T&&) 执行了" << endl;
+    }
+
+    Human(const Human& th)
+        : m_SName(th.m_SName)
+    {
+        cout << "Human 的拷贝构造函数执行了" << endl;
+    }
+
+    Human(Human&& th)
+        : m_SName(std::move(th.m_SName))
+    {
+        cout << "Human 的移动构造函数执行了" << endl;
+    }
+
+private:
+    string m_SName;
+};
+
+int main(void)
+{
+    string sName = "ZhangSan";
+    Human MyHuman1(sName);
+    Human MyHuman2(string("LiSi"));
+
+    // Human MyHuman3(MyHuman1); /* 错误：Boom! 主要问题是走进去了 万能引用中。
+    //     我们实际上是希望调用拷贝构造，然后不可能将 MyHuman 对象 有参构造 string 对象的，而不是有参构造 */
+    /* 我们现在就是想要让编译器去执行 拷贝构造函数，而不是 有参构造模板 ---> std::enable_if */
+
+    Human MyHuman4(std::move(MyHuman1)); /* ✅ */
+
+    const Human MyHuman5(string("Wangwu"));
+    Human MyHuman6(MyHuman5); /* ✅ Human 的拷贝构造函数执行了 */
+}
+```
+
+## 5 - 在 可变参 模板中使用完美转发范例
+
+### 常规的 在可变参模板使用完美转发
+
+这个写法比较复杂，记一下就行了
+
+```cxx
+template <typename F, typename... T>
+void funcMiddle_Temp(F f, T&&... t)
+{
+    f(std::forward<T>(t)...);
+}
+
+void funcLast(int v1, int& v2)
+{
+    ++v2;
+    cout << v1 + v2 << endl;
+}
+
+int main(void)
+{
+    int j = 70;
+    funcMiddle_Temp(funcLast, 20, j); // 91
+    cout << "j=" << j << endl; // 71
+}
+```
+
+### 将目标函数中的返回值 通过转发函数返回 给调用者函数
+
+用到的技术：auto + decltype 构成返回类型的后置语法
+
+```cxx
+template <typename F, typename... T>
+/* FIXME 这里的 decltype 不会浪费资源，decltype 与 sizeof 都是不求值的 */
+auto funcMiddle_Temp(F f, T&&... t) -> decltype(f(std::forward<T>(t)...))
+{
+    return f(std::forward<T>(t)...);
+}
+
+int funcLast(int v1, int& v2)
+{
+    ++v2;
+    cout << v1 + v2 << endl;
+    return v1 + v2;
+}
+
+int main(void)
+{
+    int j = 70;
+    int k = funcMiddle_Temp(funcLast, 20, j); // 91
+    cout << "j=" << j << endl; // 71
+    cout << "k=" << k << endl; // 91
+}
+```
+
+但是这种写法会出现，引用的丢失的问题`int& ---> int`，可以使用下面这种写法
+
+```cxx
+template <typename F, typename... T>
+/* FIXME 这里的 decltype 不会浪费资源，decltype 与 sizeof 都是不求值的 */
+decltype(auto) funcMiddle_Temp(F f, T&&... t)
+{
+    return f(std::forward<T>(t)...);
+}
+```
 
 ## 6 - 完美转发失败的情形（例子）
+
+使用 NULL 或者 0 作为空指针进行参数传递时，导致完美转发失败的情况
+
+```cxx
+template <typename F, typename... T>
+void funcMiddle_Temp1(F f, T&&... t)
+{
+    f(std::forward<T>(t)...);
+}
+
+int main(void)
+{
+    // funcMiddle_Temp1(funcLast4, NULL);
+    // /* 错误：f(std::forward<T>(t)...); ：Cannot initialize a parameter of type 'char *' with an rvalue of type 'long' */
+    // /* 解决方案：使用nullptr */
+
+    funcMiddle_Temp1(funcLast4, nullptr);
+}
+```

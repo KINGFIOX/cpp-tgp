@@ -170,3 +170,73 @@ void func(T&& arg) {
 
 引用折叠规则使得我们可以编写能够同时接受左值和右值参数的模板函数，而不需要为每个值类别写重载函数。
 这是实现完美转发的基础，完美转发允许函数模板将其参数以原始的值类别转发到其他函数。
+
+## 移动构造函数
+
+在 C++ 中，移动构造函数是一种特殊的构造函数，用于将资源从一个对象转移到另一个对象，这通常在涉及到临时对象时发生。移动构造函数接管了另一个对象的资源，这可以提高性能，因为它避免了不必要的复制。
+
+下面是一个简单的 C++ 类示例，其中包含一个移动构造函数：
+
+```cpp
+#include <iostream>
+#include <vector>
+
+class SimpleClass {
+private:
+    std::vector<int> data;
+
+public:
+    // 默认构造函数
+    SimpleClass() {}
+
+    // 初始化构造函数
+    SimpleClass(const std::initializer_list<int>& il) : data(il) {
+        std::cout << "Constructed with a " << data.size() << "-element list\n";
+    }
+
+    // 拷贝构造函数
+    SimpleClass(const SimpleClass& other) : data(other.data) {
+        std::cout << "Copy constructed\n";
+    }
+
+    // 移动构造函数
+    SimpleClass(SimpleClass&& other) noexcept : data(std::move(other.data)) {
+        std::cout << "Move constructed\n";
+        other.data.clear(); // 显式清除源对象的数据，这不是必须的，因为移动后源对象通常不应再使用
+    }
+
+    // ... 其他成员函数 ...
+
+    // 打印数据以展示移动效果
+    void printData() const {
+        for (auto val : data) {
+            std::cout << val << " ";
+        }
+        std::cout << "\n";
+    }
+};
+
+int main() {
+    SimpleClass original({1, 2, 3, 4, 5});
+    std::cout << "Original: ";
+    original.printData();
+
+    SimpleClass moved(std::move(original)); // 使用移动构造函数
+    std::cout << "Moved: ";
+    moved.printData();
+
+    // 通常，在对象被移动之后，我们不应该再使用原对象，但如果你确实需要使用，应该检查其状态
+    std::cout << "Original after move: ";
+    original.printData();
+
+    return 0;
+}
+```
+
+在这个示例中，`SimpleClass` 包含一个 `std::vector<int>` 作为其成员数据。
+当创建一个 `SimpleClass` 对象并使用 `std::move` 将它传递给另一个 `SimpleClass` 对象时，移动构造函数被调用。
+移动构造函数使用 `std::move` 来转移 `data` 成员的所有权，避免复制整个 `vector`。
+
+在移动操作后，源对象（在这个例子中是 `original`）已经将其资源转移给了目标对象（`moved`），因此原对象的状态是未定义的。
+为了代码安全，我们通常不应该在移动操作后再使用源对象。
+如果确实需要再次使用它，应该先确保它处于有效的状态，比如在移动构造函数中将其成员清空或重置。
