@@ -42,10 +42,10 @@ int main(void)
 {
     using boost::typeindex::type_id_with_cvr;
 
-    cout << "myaobj 的返回类型=" << type_id_with_cvr<decltype(mydeclval<A>())>().pretty_name() << endl;
+    cout << type_id_with_cvr<decltype(mydeclval<A>())>().pretty_name() << endl;
     // 这里并不是要调用 myfunc，因此语义上没有要创建一个 临时对象
 
-    // cout << "myaobj.myfunc() 的返回类型=" << type_id_with_cvr<decltype(mydeclval<A>().myfunc())>().pretty_name() << endl;
+    // cout << type_id_with_cvr<decltype(mydeclval<A>().myfunc())>().pretty_name() << endl;
     // 虽然不是创建一个 真实的对象，mydeclval<A>() 看起来是要作为一个操作数，参与计算。因此要遵循一个 语义限制
     // 这里的语义是：创建一个临时对象
     // 返回原始类型，就是有一种 创建临时对象的语义（将亡值）
@@ -53,7 +53,7 @@ int main(void)
     /**
      * 错误：
      * error: s1_3.cxx:47:77: error: temporary of type 'A' has private destructor
-     * 47 |     cout << "myaobj.myfunc() 的返回类型=" << type_id_with_cvr<decltype(mydeclval<A>().myfunc())>().pretty_name() << endl;
+     * 47 |     cout  << type_id_with_cvr<decltype(mydeclval<A>().myfunc())>().pretty_name() << endl;
      * |                                                                        ^
      * s1_3.cxx:35:5: note: declared private here
      * 35 |     ~A() { }

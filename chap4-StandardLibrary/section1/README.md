@@ -168,6 +168,200 @@ int main(void)
 
 ### 返回左值引用? 还是 返回右值引用?
 
+#### 左值 （引用折叠）
+
+```cxx
+template <typename T>
+T& mydeclval() noexcept; /* 我们自己模拟一个 declval，但是 左值引用 */
+
+int main(void)
+{
+    using boost::typeindex::type_id_with_cvr;
+
+    cout << "mydeclval<A> => " << type_id_with_cvr<decltype(mydeclval<A>())>().pretty_name() << endl;
+    cout << "mydeclval<A&> => " << type_id_with_cvr<decltype(mydeclval<A&>())>().pretty_name() << endl;
+    cout << "mydeclval<A&&> => " << type_id_with_cvr<decltype(mydeclval<A&&>())>().pretty_name() << endl;
+    /**
+     * 下面三个相同，引用折叠
+     * mydeclval<A> => A&
+     * mydeclval<A&> => A&
+     * mydeclval<A&&> => A&
+     */
+}
+```
+
+#### 右值
+
+返回右值，实际得到的类型更全面
+
+```cxx
+template <typename T>
+T&& mydeclval() noexcept; /* 我们自己模拟一个 declval，右值引用 */
+
+int main(void)
+{
+    using boost::typeindex::type_id_with_cvr;
+
+    cout << "mydeclval<A> => " << type_id_with_cvr<decltype(mydeclval<A>())>().pretty_name() << endl;
+    cout << "mydeclval<A&> => " << type_id_with_cvr<decltype(mydeclval<A&>())>().pretty_name() << endl;
+    cout << "mydeclval<A&&> => " << type_id_with_cvr<decltype(mydeclval<A&&>())>().pretty_name() << endl;
+    /**
+     * 下面三个相同，引用折叠
+     * mydeclval<A> => A&&
+     * mydeclval<A&> => A&
+     * mydeclval<A&&> => A&&
+     */
+}
+```
+
 ### 调用引用限定符修饰的 成员函数范例
 
+```cxx
+class ALR {
+public:
+    void onAnyValue()
+    {
+        cout << "ALR::onAnyValue() 函数执行了!" << endl;
+    }
+    void onLValue() & /* 限定符 &，只能被左值对象调用 */
+    {
+        cout << "ALR::onLValue() 函数执行了!" << endl;
+    }
+    // void onLvalue() && /* 限定符 &&，只能被右值对象调用 */ // 这种重载是 ✅ 的
+    // {
+    //     cout << "ALR::onAnyValue() 函数执行了!" << endl;
+    // }
+
+    void onRValue() &&
+    {
+        cout << "ALR::onRValue() 函数执行了!" << endl;
+    }
+};
+
+#define R 1
+
+#if R
+
+template <typename T>
+T&& mydeclval() noexcept; /* 我们自己模拟一个 declval，右值引用 */
+
+#else
+
+template <typename T>
+T& mydeclval() noexcept; /* 我们自己模拟一个 declval，右值引用 */
+
+#endif
+
+int main(void)
+{
+    ALR alr; /* 左值类型 */
+    alr.onAnyValue();
+
+    /**
+     * alr.onRValue();
+     * 错误：'this' argument to member function 'onRValue' is an lvalue,
+     *   but function has rvalue ref-qualifier
+     */
+
+    ALR().onRValue();
+
+    /**
+     * ALR().onLValue();
+     * 'this' argument to member function 'onLValue' is an rvalue,
+     *	  but function has non-const lvalue ref-qualifier
+     *
+     */
+
+#if R
+
+    decltype(mydeclval<ALR>().onAnyValue());
+    decltype(mydeclval<ALR&>().onLValue()); // 此时 mydeclval -> ALR &
+    // decltype(mydeclval<ALR&>().onRValue()); // 错误
+    decltype(mydeclval<ALR&&>().onRValue()); // 此时 mydeclval -> ALR &&
+    // decltype(mydeclval<ALR&&>().onLValue()); // 错误
+
+#else
+
+    /* mydeclval 返回左值引用，凡是 onRValue() 就是错误的 */
+
+    decltype(mydeclval<ALR>().onAnyValue());
+    decltype(mydeclval<ALR&>().onLValue()); // 此时 mydeclval -> ALR &
+    // decltype(mydeclval<ALR&>().onRValue()); // 错误
+    // decltype(mydeclval<ALR&&>().onRValue()); // 此时 mydeclval -> ALR &&
+    decltype(mydeclval<ALR&&>().onLValue()); // ✅
+
+#endif
+}
+```
+
 ## 3 - 推导函数返回值范例
+
+函数类型一般由：函数返回值 和 参数类类型决定，与函数名、形参名没有关系。
+
+### 第一种写法
+
+看 s1_2/s1_2.cxx，感觉这个东西有点玄学
+
+```cxx
+template <typename T_F, typename... U_Args>
+decltype(std::declval<T_F>()(std::declval<U_Args>()...)) TestFnRtnImpl(T_F func, U_Args... args)
+/* std::declval<> 中的 U_Args 写成 U_Args&、U_Args&& 都一样 */
+/* std::declval<T_F>()(std::declval<U_Args>()...) <== 根据函数类型、函数参数类型 推导函数的返回值 */
+/* std::declval<U_Args>() 创建假想对象，然后... */
+/* std::declval<T_F>() ---> int(* &&)(int, int) ==> 可以简单理解成是 int(*)(int, int) */
+/* (std::declval<U_Args>()...) 这种写法，推导出来的是 两个 int&& */
+/* 这里实际上是假想的调用了 */
+{
+    auto rtnValue = func(args...);
+    using boost::typeindex::type_id_with_cvr;
+    cout << type_id_with_cvr<decltype(std::declval<T_F>())>().pretty_name() << endl; // int (*&&)(int, int)
+    return rtnValue;
+}
+
+int main(void)
+{
+    auto result = TestFnRtnImpl(myfunc, 89, 64);
+    /**
+     * T_F 被推断成 int(*)(int, int)
+     * U_Args : int, int
+     */
+    cout << result << endl;
+    // decltype(int); // 错误：expected '(' for function-style cast or type construction
+    // decltype 里面都是跟着：对象，并不是类，因此不能：
+    // decltype(T_F(U_ARGS...))
+}
+```
+
+### 第二种写法（返回类型后置语法）
+
+返回类型后置语法
+
+```cxx
+template <typename T_F, typename... U_Args>
+auto TestFnRtnImpl(T_F func, U_Args... args) -> decltype(func(args...))
+{
+    auto rtnValue = func(args...);
+    return rtnValue;
+}
+
+int main(void)
+{
+    auto result = TestFnRtnImpl(myfunc, 89, 64);
+    /**
+     * T_F 被推断成 int(*)(int, int)
+     * U_Args : int, int
+     */
+    cout << result << endl;
+    // decltype(int); // 错误：expected '(' for function-style cast or type construction
+    // decltype 里面都是跟着：对象，并不是类，因此不能：
+    // decltype(T_F(U_ARGS...))
+}
+```
+
+并不能去掉 返回类型后置语法`-> decltype(func(args...))`，
+
+有了` -> decltype(func(args...))`后置语法，前面的 auto 就相当于是一种装饰（填充），
+实际起作用的是后面的。
+
+不能`auto TestFnRtnImpl(T_F func, U_Args... args)`，
+这玩意儿就是 auto 了（形参是 传值，看 chap3-s2），会抛弃`&`或者是`const`等
