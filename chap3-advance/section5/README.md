@@ -6,6 +6,12 @@
 
 ## 2 - myclassT<ARGS>... 继承
 
+看 s5_2.cxx
+
 ## 3 - myclassT<ARGS.char>... 继承
 
+看 s5_3.cxx
+
 ## 4 - myclassT<ARGS, ARGS...>... 继承
+
+看 s5_4.cxx

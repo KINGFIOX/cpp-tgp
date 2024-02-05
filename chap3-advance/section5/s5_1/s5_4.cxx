@@ -79,4 +79,6 @@ public:
     }
 };
 
+add_rvalue_reference()
+
 #endif
