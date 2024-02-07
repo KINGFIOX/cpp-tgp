@@ -42,11 +42,10 @@ using make_index_sequence = std::integer_sequence<std::size_t, 0, 1, 2, ..., N -
 ```cxx
 /* ---------- ---------- push_back ---------- ---------- */
 
-template <typename IS, unsigned int NewElem> // INTSEQ代表整个的std::integer_sequence< ......>类型
-struct IntSeq_PushBack; // 因为不使用泛化版本，所以泛化版本可以只声明不定义。
+template <typename IS, unsigned int NewElem>
+struct IntSeq_PushBack;
 
-// 向std::integer_sequence末尾插入元素：特化版本
-template <typename T, unsigned int... Elems, unsigned int NewElem> // 泛化版本一般要求可变参放在最后，特化版本一般无此要求
+template <typename T, unsigned int... Elems, unsigned int NewElem>
 struct IntSeq_PushBack<IntegerSequence<T, Elems...>, NewElem> {
     using type = IntegerSequence<T, Elems..., NewElem>;
 };
@@ -57,8 +56,7 @@ struct IntSeq_PushBack<IntegerSequence<T, Elems...>, NewElem> {
 template <typename T, unsigned int N>
 struct MakeIntegerSequence // 实现std::make_integer_sequence功能
 {
-    // 依次遍历出4,3,2,1，应该往末尾插入元素，所以还应该引入IntSeq_PushBack操作。
-    using type = typename IntSeq_PushBack<typename MakeIntegerSequence<T, N - 1>::type, N - 1>::type; // 这里理解成函数调用，把type理解成所调用的函数名
+    using type = typename IntSeq_PushBack<typename MakeIntegerSequence<T, N - 1>::type, N - 1>::type;
 };
 
 /**
@@ -93,4 +91,133 @@ int main(void) {
 
 ## 2 - 逆向排列数字生成一个类型 Integer_Sequence_Reverse
 
+那就是来一个 push_front 就行了
+
+```cxx
+/**
+ * @brief
+ *
+ * @tparam T
+ * @tparam Ints
+ */
+template <typename T, T... Ints>
+struct IntegerSequence {
+    using value_type = T;
+    static constexpr std::size_t size() noexcept { return sizeof...(Ints); }
+};
+
+/* ---------- ---------- push_front ---------- ---------- */
+
+template <typename IS, unsigned int NewElem> // INTSEQ代表整个的std::integer_sequence< ......>类型
+struct IntSeq_PushFront; // 因为不使用泛化版本，所以泛化版本可以只声明不定义。
+
+// 向std::integer_sequence末尾插入元素：特化版本
+template <typename T, unsigned int NewElem, unsigned int... Elems> // 泛化版本一般要求可变参放在最后，特化版本一般无此要求
+struct IntSeq_PushFront<IntegerSequence<T, Elems...>, NewElem> {
+    /* ({a, b, c}, elem) ---> (elem, a, b, c) */
+    using type = IntegerSequence<T, NewElem, Elems...>;
+};
+
+/* ---------- ---------- make_integer_sequence_reverse ---------- ---------- */
+
+// 泛化版本
+template <typename T, unsigned int N> /* 默认从 1 开始计数 */
+struct MakeIntegerSequence_Reverse // 实现std::make_integer_sequence功能
+{
+    // 依次遍历出4,3,2,1，应该往末尾插入元素，所以还应该引入IntSeq_PushBack操作。
+    using type = typename IntSeq_PushFront<typename MakeIntegerSequence_Reverse<T, N - 1>::type, N - 1>::type; // 这里理解成函数调用，把type理解成所调用的函数名
+};
+
+/**
+ * @brief base case （特化版本）
+ *
+ * @tparam T
+ */
+template <typename T>
+struct MakeIntegerSequence_Reverse<T, 1> // 这里是1，意味着递归到1就可以了
+{
+    using type = IntegerSequence<T, 0>; // 这是0，注意。
+};
+
+// 定义别名模板
+template <typename T, unsigned int N>
+using IntegerSequence_t = typename MakeIntegerSequence_Reverse<T, N>::type;
+
+// MISR<int, 4>::type = PF<MISR<int, 3>::type, 3>::type
+// // MISR<int, 3>::type = PF<MISR<int, 2>::type, 2>::type
+// // // MISR<int, 2>::type = PF<MISR<int, 1>::type, 1>::type
+// // // // MISR<int, 1>::type = IS<int, 0>
+// // // MISR<int, 2>::type = PF<IS<int, 0>, 1>::type = IS<1, 0>
+// // ...
+```
+
 ## 3 - 将一个数字重复多次生成一个类型 Repeat_Integer
+
+需求：`repeat_sequence<1, 4> = integer_sequence<1, 1, 1, 1>`，
+可以使用递归，再来一个计数器，可以实现
+
+前面是通过递归调用`::type`的方式实现，下面使用递归继承的方式展开（gpt 给我生成的几个代码是：递归继承的）
+
+```cxx
+/**
+ * @brief
+ *
+ * @tparam T
+ * @tparam Ints
+ */
+template <typename T, T... Ints>
+struct IntegerSequence {
+    using value_type = T;
+    static constexpr std::size_t size() noexcept { return sizeof...(Ints); }
+};
+
+/**
+ * @brief 泛化版本
+ *
+ * @tparam Num 重复的数字的名称
+ * @tparam RepeatTime 要重复的次数
+ * @tparam IS
+ */
+template <std::size_t Num, std::size_t RepeatTime, typename IS = IntegerSequence<std::size_t>>
+class RepeatInteger;
+
+/**
+ * @brief 特化版本 （递归）
+ *
+ * @tparam Num
+ * @tparam RepeatTime 继承的时候，每次 - 1
+ * @tparam index
+ */
+template <std::size_t Num, std::size_t RepeatTime, std::size_t... index>
+class RepeatInteger<Num, RepeatTime, IntegerSequence<std::size_t, index...>>
+    : public RepeatInteger<Num, RepeatTime - 1, IntegerSequence<std::size_t, index..., Num>> {
+    /* 继承的时候，repeat--，然后 IntegerSequence 中多了一个 Num */
+};
+
+/**
+ * @brief base case
+ *
+ */
+template <std::size_t Num, std::size_t... index>
+class RepeatInteger<Num, 0, IntegerSequence<std::size_t, index...>> {
+public:
+    using type = IntegerSequence<std::size_t, index...>;
+};
+
+template <std::size_t Num, std::size_t RepeatTime>
+using RepeatInteger_t = RepeatInteger<Num, RepeatTime>::type;
+
+// RepeatInteger<10, 4>::type
+// RI<10, 4, IS<int, 空>> : RI<10, 3, IS<int, 10>>
+// // RI<10, 3, IS<int, 10>> : RI<10, 2, IS<int, 10, 10>>
+// // // RI<10, 2, IS<int, 10, 10>> : RI<10, 1, IS<int, 10, 10, 10>>
+// // // // RI<10, 2, IS<int, 10, 10, 10> : RI<10, 0, IS<int, 10, 10, 10, 10>>
+// // // // // RI<10, 0, IS<int, 10, 10, 10, 10>::type = IS<int, 10, 10, 10, 10>
+// 一系列的继承 RI<10, 3, IS<int, 空>>::type = （老祖中有 type）
+
+int main(void)
+{
+    RepeatInteger_t<10, 4> tmpObj1;
+    std::cout << typeName<decltype(tmpObj1)>() << std::endl;
+}
+```
