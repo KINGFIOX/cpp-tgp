@@ -51,7 +51,7 @@ class CallFuncObj<T(Args...)> {
 public:
     /* 为了能够接受参数：构造函数 */
     template <typename U>
-    CallFuncObj(U&& acObj) /* 万能引用，但是要有一个约束：有成员函数 operator() */
+    CallFuncObj(U&& acObj)
     {
         /* 构造函数，怎么存起来这个 acObj */
         handler = new CFObjHandlerChild<U, T, Args...>(std::forward<U>(acObj));
@@ -99,7 +99,7 @@ error: p2.cxx:51:23: error: no matching constructor for initialization of 'CFObj
       |                       ^                                ~~~~~~~~~~~~~~~~~~~~~~
 ```
 
-如果传进来是 lambda 表达式，lambda 表达式是右值。
+如果传进来是 临时的 lambda 表达式，临时的 lambda 表达式是右值。
 那么也就是`handler = new CFObjHandlerChild<M&&, T, Args...>(std::forward<M&&>(lambda));`。
 然后到`CFObjHandlerChild`，他的构造函数是`CFObjHandlerChild(M&& & tmpFuncObj)`，
 经过引用折叠，其构造函数就是`CFObjHandlerChild(M& tmpFuncObj)`。
