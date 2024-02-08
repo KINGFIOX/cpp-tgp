@@ -26,11 +26,3 @@ target("p3") do
 	set_languages("cxx17")
 	set_targetdir("./build")
 end
-
-target("p4") do
-    set_kind("binary")
-    add_files("./p4.cxx")
-    add_packages("boost")
-	set_languages("cxx17")
-	set_targetdir("./build")
-end
