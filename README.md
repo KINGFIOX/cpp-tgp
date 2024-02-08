@@ -22,3 +22,4 @@ C++模板技术。学习的教程是 王健伟老师的 C++模板 教程。确�
   - remove_all_extents
   - integer_sequence
   - is_union、is_class、integral_constant
+- 第五章 - 萃取技术 与 策略技术
