@@ -156,12 +156,368 @@ struct GetEleType<T[Size]> {
 
 ## 4 - 引用类型的移除和增加
 
+萃取的意思就是：给进去一个类型，返回出了另一个类型
+
 ### 移除
 
 C++标准库中提供了 `std::remove_reference`类模板
 
+```cxx
+template <class T1, class T2>
+void print_is_same()
+{
+    std::cout << typeid(T1).name() << std::endl;
+    std::cout << typeid(T2).name() << std::endl;
+    std::cout << "T1 == T2: " << std::is_same<T1, T2>() << std::endl; // () 产生了临时对象，并转换为 int
+    /* 类型转换运算符 constexpr opeator value_type() const noexcept {}; */
+    // std::cout << "T1 == T2" << std::is_same<T1, T2>::value << std::endl; 这两个写法一样的
+}
+
+int main(void)
+{
+    std::remove_reference<int>::type a;
+    std::remove_reference<int&>::type b;
+    std::remove_reference<int&&>::type c;
+
+    print_is_same<decltype(a), decltype(b)>();
+    print_is_same<decltype(a), decltype(c)>();
+}
+```
+
+手动实现 remove_reference
+
+```cxx
+template <typename T>
+struct RemoveReference {
+    using type = T;
+};
+
+template <typename T>
+struct RemoveReference<T&> {
+    using type = T;
+};
+
+template <typename T>
+struct RemoveReference<T&&> {
+    using type = T;
+};
+
+template <typename T>
+using RemoveReference_t = typename RemoveReference<T>::type;
+
+int main(void)
+{
+    using boost::typeindex::type_id_with_cvr;
+    int a1 = 12;
+    int& a2 = a1;
+    int&& a3 = 12;
+    std::cout << type_id_with_cvr<decltype(a3)>().pretty_name() << std::endl; // int (*&&)(int, int)
+    std::cout << type_id_with_cvr<RemoveReference_t<decltype(a3)>>().pretty_name() << std::endl; // int (*&&)(int, int)
+}
+```
+
 ### 增加
+
+根据给定的类型创建：左值引用 或者是 右值引用
+
+1. `std::add_lvalue_reference`类模板：给进来 一个类型，返回该类型对应的左值引用类型
+2. `std::add_rvalue_reference`类模板：给进来 一个类型，返回该类型对应的右值引用类型
+3. `std::is_lvalue_reference`和`std::is_rvalue_reference`类模板，判断某个类型是否是 左值引用类型、右值引用类型
+
+```cxx
+template <typename T>
+struct AddLValueReference {
+    using type = T&;
+};
+
+template <typename T>
+struct AddRValueReference {
+    using type = T&&;
+};
+
+int main(void)
+{
+    int a = 15;
+    using boost::typeindex::type_id_with_cvr;
+    typename AddLValueReference<decltype(a)>::type b = a;
+    typename AddRValueReference<decltype(a)>::type c = 16;
+    std::cout << type_id_with_cvr<decltype(a)>().pretty_name() << std::endl;
+    std::cout << type_id_with_cvr<decltype(b)>().pretty_name() << std::endl;
+    std::cout << type_id_with_cvr<decltype(c)>().pretty_name() << std::endl;
+}
+```
+
+注意：`add_rvalue_reference<int&>::type`是`int& && ==> int&`（引用折叠）
 
 ## 5 - const 修饰符的移除
 
+```cxx
+/**
+ * @brief 泛化版本
+ *
+ */
+template <typename T>
+struct RemoveConst {
+    using type = T;
+};
+
+/**
+ * @brief 特化版本
+ *
+ */
+template <typename T>
+struct RemoveConst<const T> {
+    using type = T;
+};
+
+template <typename T>
+using RemoveConst_t = typename RemoveConst<T>::type;
+
+int main(void)
+{
+    RemoveConst_t<const int> nca = 15;
+    using boost::typeindex::type_id_with_cvr;
+    std::cout << type_id_with_cvr<decltype(nca)>().pretty_name() << std::endl;
+}
+```
+
 ## 6 - 退化（decay）技术
+
+某些类型，一旦调用了函数模板（自动推断），然后推断出来的一些类型，会发现 退化(decay) 现象。
+退化的意思就是：把类型的某一些修饰符给丢弃了。
+
+退化：对于 const int 类型来说，int 类型就是一种退化的表现
+
+```cxx
+template <typename T>
+void func(T tmpRv)
+{
+    std::cout << "---------- begin ----------" << std::endl;
+    using boost::typeindex::type_id_with_cvr;
+    std::cout << type_id_with_cvr<T>().pretty_name() << std::endl;
+    std::cout << type_id_with_cvr<decltype(tmpRv)>().pretty_name() << std::endl;
+    std::cout << "---------- end ----------" << std::endl;
+}
+
+void testFunc()
+{
+}
+
+int main(void)
+{
+    const int a = 16;
+    const int& b = a;
+    const int&& c = 18;
+
+    int arr[5] = { 1, 2, 3, 4, 5 };
+
+    func(a);
+    /**
+     * int
+     * int
+     */
+    func(b);
+    /**
+     * int
+     * int
+     */
+    func(c);
+    /**
+     * int
+     * int
+     */
+    func(arr);
+    /**
+     * int*
+     * int*
+     */
+    func(testFunc);
+    /**
+     * void (*)()
+     * void (*)()
+     */
+}
+```
+
+因为 形参是：传值，因此 const 和 `&`、`&&` 全部被丢掉了。
+
+1. 修饰符丢弃
+2. 数组 ---> 指针
+3. 函数名 ---> 函数指针
+
+这些都是 类型上的退化表现（decay）
+
+C++ 标准库：`std::decay`，该类模板的作用就是：把 类型 退化掉
+
+```cxx
+int main(void) {
+    std::decay<const int&>::type nb = 26; /* nb 类型为：int */
+}
+```
+
+函数类型的基本概念：
+
+1. 函数类型：由函数返回值、函数参数决定
+2. 可以利用函数指针，指向某种函数类型，若要指向`void func2()`，那么函数指针类型是`void(*)()`
+   定义函数指针：`void (*p)() = func2;`
+3. 必须要为：函数名退化成函数指针 特化。否则会出现一些问题：
+
+```cxx
+void f2()
+{
+    std::cout << "f2 执行了" << std::endl;
+}
+
+int main(void) {
+    Decay<decltype(testFunc2)>::type f2; // void () 表面看起来此代码行定义了一个 函数类型的变量 f2；
+                                         // 实际理解成函数声明更好。类似于 void f2();
+                                         // 如果我有一个 已经存在的同名 f2
+    std::cout << type_id_with_cvr<decltype(f2)>().pretty_name() << std::endl;
+    f2(); // 调用 f2() 函数
+}
+```
+
+### 手动实现 decay
+
+```cxx
+/* ---------- 删除 引用 ---------- */
+
+template <typename T>
+struct RemoveReference {
+    using type = T;
+};
+
+template <typename T>
+struct RemoveReference<T&> {
+    using type = T;
+};
+
+template <typename T>
+struct RemoveReference<T&&> {
+    using type = T;
+};
+
+template <typename T>
+using RemoveReference_t = typename RemoveReference<T>::type;
+
+/* ---------- 删除 const ---------- */
+
+/**
+ * @brief 泛化版本
+ *
+ */
+template <typename T>
+struct RemoveConst {
+    using type = T;
+};
+
+/**
+ * @brief 特化版本
+ *
+ */
+template <typename T>
+struct RemoveConst<const T> {
+    using type = T;
+};
+
+/* ---------- remove CR ---------- */
+
+/**
+ * @brief 把 const 和 引用 去掉
+ *
+ * @tparam T
+ */
+template <typename T>
+struct RemoveCR : RemoveConst<typename RemoveReference<T>::type> { };
+// 1. RemoveReference<T>::type 去掉 引用 的类型
+// 2. RemoveConst<typename RemoveReference<T>::type> 中有成员 type
+// 3. RemoveCR 继承 RemoveConst<typename RemoveReference<T>::type>，相当于是继承了成员 type
+// 个人想法：也可以 using type = RemoveConst<typename RemoveReference<T>::type>::type 实现
+
+template <typename T>
+using RemoveCR_t = typename RemoveCR<T>::type;
+
+template <typename T>
+struct RMCR {
+    using type = RemoveConst<typename RemoveReference<T>::type>::type;
+};
+
+template <typename T>
+using RMCR_t = typename RMCR<T>::type;
+
+/* ---------- decay ---------- */
+
+/**
+ * @brief 泛化版本
+ *
+ * @tparam T
+ */
+template <typename T>
+struct Decay : RMCR<T> { };
+
+/**
+ * @brief 针对 (有边界)数组 的特化版本，这不继承 RMCR
+ *
+ * @tparam T
+ * @tparam Size
+ */
+template <typename T, std::size_t Size>
+struct Decay<T[Size]> {
+    using type = T*;
+};
+
+/**
+ * @brief 针对 (无边界)数组 的特化版本，这不继承 RMCR
+ *
+ * @tparam T
+ */
+template <typename T>
+struct Decay<T[]> {
+    using type = T*;
+};
+
+template <typename T, typename... Args>
+struct Decay<T(Args...)> {
+    using type = T (*)(Args...);
+};
+
+template <typename T>
+using Decay_t = Decay<T>::type;
+
+/* ----------  ---------- */
+
+void testFunc2()
+{
+    std::cout << "testFunc2 执行了" << std::endl;
+}
+
+void f2()
+{
+    std::cout << "f2 执行了" << std::endl;
+}
+
+int main(void)
+{
+    /* 1. 去掉修饰符 */
+    std::decay<const int&>::type nb1 = 26; /* nb1 类型为：int */
+    std::cout << type_id_with_cvr<decltype(nb1)>().pretty_name() << std::endl;
+
+    // /* 2. 数组 */
+    // std::decay<int[10]>::type nb2; /* nb2 类型为：int* */
+    // std::cout << type_id_with_cvr<decltype(nb2)>().pretty_name() << std::endl;
+
+    /* 2. 数组 */
+    Decay<int[10]>::type nb2; /* nb2 类型为：int* */
+    std::cout << type_id_with_cvr<decltype(nb2)>().pretty_name() << std::endl;
+
+    /* 测试 */
+    RMCR<const int&>::type nb3 = 26;
+    std::cout << type_id_with_cvr<decltype(nb3)>().pretty_name() << std::endl;
+
+    Decay<decltype(testFunc2)>::type f2;
+    std::cout << type_id_with_cvr<decltype(f2)>().pretty_name() << std::endl; // void(*)()
+    // f2(); // 错误：execv(./chap5-traits/section1/s1_5/build/p4 ) failed(-1)
+    f2 = testFunc2;
+    f2();
+}
+```
