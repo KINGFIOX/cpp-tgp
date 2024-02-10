@@ -31,7 +31,7 @@ struct remove_all_extents<_Tp[_Np]> { // _Tp[_Np]
 };
 
 template <class _Tp>
-using __remove_all_extents_t = typename remove_all_extents<_Tp>::type;
+using remove_all_extents_t = typename remove_all_extents<_Tp>::type;
 ```
 
 上面这里其实递归了。
