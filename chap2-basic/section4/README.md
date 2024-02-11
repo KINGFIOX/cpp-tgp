@@ -333,8 +333,7 @@ void print_calc<int, int, int, int>(const int& __args0, const int& __args1,
 ```cxx
 // 主模板定义（泛化版本的类模板）
 template <typename... Args>
-class myClassT {
-};
+class myClassT { };
 
 // // 也有的人不写定义，只写声明（主模板）
 // template <typename... Args>
