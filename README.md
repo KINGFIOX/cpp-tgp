@@ -2,9 +2,6 @@
 
 C++模板技术。学习的教程是 王健伟老师的 C++模板 教程。确实学的比较爽。
 
-👉 https://edu.51cto.com/lecturer/13985044.html 👈，
-这是王健伟老师的 51cto 主页。
-
 个人食用心得：xmake + clangd + vscode（多文件，或者是用到了 boost 库之类的）
 
 - 第三章 - 模板进阶知识
@@ -23,3 +20,15 @@ C++模板技术。学习的教程是 王健伟老师的 C++模板 教程。确�
   - integer_sequence
   - is_union、is_class、integral_constant
 - 第五章 - 萃取技术 与 策略技术
+  - 萃取技术 及 fixed traits（固定萃取）演示
+  - 萃取技术中 vlaue traits（值萃取）演示
+  - 使用了 SFINAE 特性的信息萃取
+  - 将 trait 类模板用作模板参数
+  - 策略（policy）技术中的 算法策略
+- 第六章 - 元编程
+  - 术语、元编程
+  - 混合元编程
+  - typelist 实现
+  - tuple 实现
+
+我的评价是：想学 haskell 了

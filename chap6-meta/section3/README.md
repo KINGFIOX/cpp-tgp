@@ -184,6 +184,8 @@ int main(void)
 
 ### 老式设计
 
+看 s3_1/p3.cxx
+
 也就是《modern C++ design》的实现方法（loki 库），
 没有可变参函数模板
 

@@ -59,6 +59,16 @@ public:
         , others(tmpObj.others)
     {
         std::cout << "Tuple 特化版本1 的拷贝构造函数执行了!" << std::endl;
+        // 但是这会导致一个问题 tuple<double> = tuple<float> 会失败 ---> 拷贝构造函数模板
+    }
+
+    /* 允许 this 与 tmpObj 的类型不同 */
+    template <typename C_First, typename... C_Others>
+    Tuple(const Tuple<C_First, C_Others...>& tmpObj)
+        : first(tmpObj.first)
+        , others(tmpObj.others)
+    {
+        std::cout << "tuple 拷贝构造模板 执行了" << std::endl;
     }
 
     /* 万能引用，构造函数 */
@@ -102,6 +112,9 @@ int main(void)
 {
     int i = 100;
     Tuple<float, int, std::string> t1(12.5f, i, std::string("fuck"));
-    /* 发现有编译错误，因为调用到了万能引用了 */
-    Tuple<float, int, std::string> t2 = t1;
+    /* 发现有编译错误，因为调用到了万能引用了，解决方案：enable_if */
+
+    Tuple<float, int, std::string> t2 = t1; //
+
+    Tuple<double, int, std::string> t3 = t1; // tuple 拷贝构造模板 执行了
 }

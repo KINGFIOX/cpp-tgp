@@ -112,8 +112,13 @@ s3_8.cxx:6:23: note: candidate template ignored: substitution failure [with T = 
 编译器的分支逻辑（编译器就可以确定走哪条分支）
 
 ```cxx
-template <bool, class _Tp = void> struct _LIBCPP_TEMPLATE_VIS enable_if {}; // 泛化版本
-template <class _Tp> struct _LIBCPP_TEMPLATE_VIS enable_if<true, _Tp> {typedef _Tp type;}; // 偏特化版本
+template <bool, class _Tp = void>
+struct enable_if { }; // 泛化版本
+
+template <class _Tp> // 偏特化版本
+struct enable_if<true, _Tp> {
+    using type = _Tp;
+};
 /* 只有这个偏特化版本存在，才存在一个名字叫做 type 的类型别名 */
 ```
 
